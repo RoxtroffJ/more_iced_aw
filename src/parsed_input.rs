@@ -4,6 +4,55 @@
 //! It is also not stateless, which allows to modify the value by other means than
 //! interacting with this widget, while the state makes sure to keep track of whether
 //! the text matches the value or not.
+//!
+//! # Example
+//!
+//! ```
+//! use iced::{self, Element, widget::{text_input, row, text, column}, color, alignment::Vertical};
+//! use more_iced_aw::parsed_input::*;
+//!
+//! #[derive(Default)]
+//! struct App {
+//!     state: State<i8, std::num::ParseIntError>,
+//!     msg: String
+//! }
+//!
+//! #[derive(Debug, Clone)]
+//! enum Message {
+//!     Input(Parsed<i8, std::num::ParseIntError>),
+//!     Paste(Parsed<i8, std::num::ParseIntError>),
+//!     Submit
+//! }
+//!
+//! impl App {
+//!     fn update(&mut self, message: Message) {
+//!         self.msg = format!("{message:?}");
+//!         match message {
+//!             Message::Input(parsed) => self.state.update(parsed),
+//!             Message::Paste(parsed) => self.state.update(parsed),
+//!             Message::Submit => ()
+//!         }
+//!     }
+//!
+//!     fn view(&self) -> Element<'_, Message> {
+//!         let input = ParsedInput::new("Type an integer", &self.state)
+//!         .style(color_on_err(text_input::default, color!(0xff0000, 0.2)))
+//!         .on_input(Message::Input)
+//!         .on_paste(Message::Paste)
+//!         .on_submit(Message::Submit);
+//!         
+//!         let row = row![input].push_maybe(self.state.get_error().as_ref().map(|err| text(err.to_string())))
+//!         .align_y(Vertical::Center)
+//!         .spacing(10);
+//!         
+//!         column![row, text(&self.msg)].spacing(20).into()
+//!     }
+//! }
+//!
+//! fn main() -> iced::Result {
+//!     iced::run("Parsed Input", App::update, App::view)
+//! }
+//! ```
 
 use std::{
     borrow::Borrow,
@@ -473,7 +522,6 @@ pub fn color_on_err<Theme>(
 ) -> impl Fn(&Theme, Status, bool) -> Style {
     move |theme, status, valid| {
         let style = style(theme, status);
-
         if valid {
             style
         } else {
@@ -501,6 +549,12 @@ pub fn color_on_err<Theme>(
                 ..style
             }
         }
+    }
+}
+
+impl<T: Default + ToString, E> Default for State<T, E> {
+    fn default() -> Self {
+        Self::new(T::default())
     }
 }
 
