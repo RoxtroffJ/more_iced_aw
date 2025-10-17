@@ -12,10 +12,17 @@ use std::{
 };
 
 use iced::{
-    advanced::{graphics::core::Element, text, Shell, Widget}, alignment, widget::{
-        text_input::{self, Icon, Id, Status, Style, StyleFn}, TextInput
-    }, Length, Padding, Pixels
+    Background, Color, Gradient, Length, Padding, Pixels,
+    advanced::{Shell, Widget, graphics::core::Element, text},
+    alignment,
+    gradient::{ColorStop, Linear},
+    widget::{
+        TextInput,
+        text_input::{self, Icon, Id, Status, Style, StyleFn},
+    },
 };
+
+use crate::helpers::filter_color;
 
 /// The state of the [ParsedInput] for a value of type `T` and parsing errors of type `E`.
 ///
@@ -427,15 +434,15 @@ where
     }
 
     fn mouse_interaction(
-            &self,
-            state: &iced::advanced::widget::Tree,
-            layout: iced::advanced::Layout<'_>,
-            cursor: iced::advanced::mouse::Cursor,
-            viewport: &iced::Rectangle,
-            renderer: &Renderer,
-        ) -> iced::advanced::mouse::Interaction {
-        
-        self.text_input.mouse_interaction(state, layout, cursor, viewport, renderer)
+        &self,
+        state: &iced::advanced::widget::Tree,
+        layout: iced::advanced::Layout<'_>,
+        cursor: iced::advanced::mouse::Cursor,
+        viewport: &iced::Rectangle,
+        renderer: &Renderer,
+    ) -> iced::advanced::mouse::Interaction {
+        self.text_input
+            .mouse_interaction(state, layout, cursor, viewport, renderer)
     }
 
     fn size_hint(&self) -> iced::Size<Length> {
@@ -443,8 +450,8 @@ where
     }
 }
 
-impl<'a, T: FromStr<Err = E>, E, Message: Clone + 'a, Theme: 'a, Renderer: 'a> From<ParsedInput<'a, T, E, Message, Theme, Renderer>>
-    for Element<'a, Message, Theme, Renderer>
+impl<'a, T: FromStr<Err = E>, E, Message: Clone + 'a, Theme: 'a, Renderer: 'a>
+    From<ParsedInput<'a, T, E, Message, Theme, Renderer>> for Element<'a, Message, Theme, Renderer>
 where
     Renderer: iced::advanced::text::Renderer,
     Theme: text_input::Catalog,
@@ -453,9 +460,48 @@ where
         Element::new(value)
     }
 }
+
 /// A mutable borrow of the inner value of a [State].
 pub struct BorrowMut<'a, T: ToString, E> {
     state: &'a mut State<T, E>,
+}
+
+/// Returns a [text_input::Style] and applies a color to it's background when the [ParsedInput] has an invalid [String].
+pub fn color_on_err<Theme>(
+    style: impl Fn(&Theme, Status) -> Style,
+    color: Color,
+) -> impl Fn(&Theme, Status, bool) -> Style {
+    move |theme, status, valid| {
+        let style = style(theme, status);
+
+        if valid {
+            style
+        } else {
+            let background = match style.background {
+                iced::Background::Color(c) => Background::Color(filter_color(c, color)),
+                iced::Background::Gradient(gradient) => match gradient {
+                    iced::Gradient::Linear(linear) => {
+                        let new_stops = linear.stops.map(|x| {
+                            x.map(|stop| ColorStop {
+                                color: filter_color(stop.color, color),
+                                ..stop
+                            })
+                        });
+
+                        Background::Gradient(Gradient::Linear(Linear {
+                            stops: new_stops,
+                            ..linear
+                        }))
+                    }
+                },
+            };
+
+            text_input::Style {
+                background,
+                ..style
+            }
+        }
+    }
 }
 
 impl<T, E> AsRef<T> for State<T, E> {
