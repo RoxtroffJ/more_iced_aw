@@ -41,7 +41,14 @@
 //!         .on_paste(Message::Paste)
 //!         .on_submit(Message::Submit);
 //!         
-//!         let row = row![input].push_maybe(self.state.get_error().as_ref().map(|err| text(err.to_string())))
+//!         let row = row![input]
+//!         .push_maybe(
+//!             self
+//!             .state
+//!             .get_error()
+//!             .as_ref()
+//!             .map(|err| text(err.to_string()))
+//!          )
 //!         .align_y(Vertical::Center)
 //!         .spacing(10);
 //!         
