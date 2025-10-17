@@ -13,7 +13,7 @@
 //!
 //! #[derive(Default)]
 //! struct App {
-//!     state: State<i8, std::num::ParseIntError>,
+//!     content: Content<i8, std::num::ParseIntError>,
 //!     msg: String
 //! }
 //!
@@ -28,14 +28,17 @@
 //!     fn update(&mut self, message: Message) {
 //!         self.msg = format!("{message:?}");
 //!         match message {
-//!             Message::Input(parsed) => self.state.update(parsed),
-//!             Message::Paste(parsed) => self.state.update(parsed),
-//!             Message::Submit => ()
+//!             Message::Input(parsed) => self.content.update(parsed),
+//!             Message::Paste(parsed) => self.content.update(parsed),
+//!             Message::Submit => if self.content.is_valid() {
+//!                 let mut val = self.content.borrow_mut();
+//!                 *val += 1
+//!             }
 //!         }
 //!     }
 //!
 //!     fn view(&self) -> Element<'_, Message> {
-//!         let input = ParsedInput::new("Type an integer", &self.state)
+//!         let input = ParsedInput::new("Type an integer", &self.content)
 //!         .style(color_on_err(text_input::default, color!(0xff0000, 0.2)))
 //!         .on_input(Message::Input)
 //!         .on_paste(Message::Paste)
@@ -44,7 +47,7 @@
 //!         let row = row![input]
 //!         .push_maybe(
 //!             self
-//!             .state
+//!             .content
 //!             .get_error()
 //!             .as_ref()
 //!             .map(|err| text(err.to_string()))
@@ -80,20 +83,26 @@ use iced::{
 
 use crate::helpers::filter_color;
 
-/// The state of the [ParsedInput] for a value of type `T` and parsing errors of type `E`.
+/// The content of the [ParsedInput] for a value of type `T` and parsing errors of type `E`.
 ///
 /// It implements [Deref] into `T`, which allows you to access the inner value.
-/// To modify it, you must first call [borrow_mut](State::borrow_mut)
-/// and the outputed [BorrowMut] will implement [DerefMut] into `T`.
+/// To modify `T`, you must first call [borrow_mut](Content::borrow_mut)
+/// and the outputed [BorrowMut] will implement [DerefMut] into `T` (see this [example](crate::parsed_input))
+/// 
+/// # Assumptions
+/// 
+/// For a [ParsedInput] build on this [Content] to work as intendeed, 
+/// it is mendatory that for all `value: T`,
+/// `value.to_string().parse() == Ok(value)`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct State<T, E> {
+pub struct Content<T, E> {
     value: T,
     string: String,
     error: Option<E>,
 }
 
-impl<T, E> State<T, E> {
-    /// Creates a new state.
+impl<T, E> Content<T, E> {
+    /// Creates a new content.
     pub fn new(value: T) -> Self
     where
         T: ToString,
@@ -106,15 +115,16 @@ impl<T, E> State<T, E> {
         }
     }
 
-    /// Mutably borrows the inner value.
+    /// Mutably borrows the inner value (`T`), to then be able to modify it.
     ///
-    /// This will cause the string displayed in the text input to be reset when
-    /// the [BorrowMut] will be dropped, even if the value was unchanged.
+    /// The returned [BorrowMut] implements [DerefMut<Target: T>]. 
+    /// When dropped, it will set the string of `self` (that is displayed
+    /// in the [ParsedInput]) to `value.to_string()`.
     pub fn borrow_mut(&mut self) -> BorrowMut<'_, T, E>
     where
         T: ToString,
     {
-        BorrowMut { state: self }
+        BorrowMut { content: self }
     }
 
     /// Indicates if the value corresponds to the string.
@@ -127,7 +137,9 @@ impl<T, E> State<T, E> {
         &self.error
     }
 
-    /// Updates the state with the given [Parsed].
+    /// Updates the content with the given [Parsed].
+    /// 
+    /// See this [example](crate::parsed_input) for recommended usage.
     pub fn update(&mut self, parsed: Parsed<T, E>) {
         self.string = parsed.string;
         match parsed.parsed {
@@ -154,6 +166,8 @@ enum InnerMessage {
 /// A string and parser result.
 ///
 /// You can't modify it unless you deconstruct it and rebuild it.
+/// It is used in the messages produced by a [ParsedInput] and
+/// allows to update a [Content]. 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Parsed<T, E> {
     string: String,
@@ -183,12 +197,12 @@ impl<T, E> Parsed<T, E> {
         }
     }
 
-    /// Gets the values contained in the [Parsed]
+    /// Gets the values contained in the [Parsed].
     pub fn take(self) -> (String, Result<T, E>) {
         (self.string, self.parsed)
     }
 
-    /// Returns a reference to the contained string.
+    /// Returns a reference to the contained [String].
     pub fn get_string(&self) -> &String {
         &self.string
     }
@@ -207,7 +221,7 @@ where
     Renderer: iced::advanced::text::Renderer,
     Theme: text_input::Catalog,
 {
-    state: &'a State<T, E>,
+    content: &'a Content<T, E>,
     text_input: TextInput<'a, InnerMessage, Theme, Renderer>,
 
     on_input: Option<Box<dyn Fn(Parsed<T, E>) -> Message + 'a>>,
@@ -222,11 +236,11 @@ where
     Renderer: iced::advanced::text::Renderer,
     Theme: text_input::Catalog + 'a,
 {
-    /// Creates a new [ParsedInput] from a [State].
-    pub fn new(placeholder: &str, state: &'a State<T, E>) -> Self {
+    /// Creates a new [ParsedInput] from a [Content].
+    pub fn new(placeholder: &str, content: &'a Content<T, E>) -> Self {
         Self {
-            state,
-            text_input: TextInput::new(placeholder, &state.string),
+            content,
+            text_input: TextInput::new(placeholder, &content.string),
             on_input: None,
             on_paste: None,
             on_submit: None,
@@ -357,7 +371,7 @@ where
     where
         Theme::Class<'a>: From<StyleFn<'a, Theme>>,
     {
-        self.text_input = if self.state.is_valid() {
+        self.text_input = if self.content.is_valid() {
             self.text_input.style(move |t, s| style(t, s, true))
         } else {
             self.text_input.style(move |t, s| style(t, s, false))
@@ -517,9 +531,12 @@ where
     }
 }
 
-/// A mutable borrow of the inner value of a [State].
+/// A mutable borrow of the inner value of a [Content].
+/// 
+/// It allows to change said value without having the value
+/// and the string of the [Content] going out of sync.
 pub struct BorrowMut<'a, T: ToString, E> {
-    state: &'a mut State<T, E>,
+    content: &'a mut Content<T, E>,
 }
 
 /// Returns a [text_input::Style] and applies a color to it's background when the [ParsedInput] has an invalid [String].
@@ -559,25 +576,25 @@ pub fn color_on_err<Theme>(
     }
 }
 
-impl<T: Default + ToString, E> Default for State<T, E> {
+impl<T: Default + ToString, E> Default for Content<T, E> {
     fn default() -> Self {
         Self::new(T::default())
     }
 }
 
-impl<T, E> AsRef<T> for State<T, E> {
+impl<T, E> AsRef<T> for Content<T, E> {
     fn as_ref(&self) -> &T {
         &**self
     }
 }
 
-impl<T, E> Borrow<T> for State<T, E> {
+impl<T, E> Borrow<T> for Content<T, E> {
     fn borrow(&self) -> &T {
         &**self
     }
 }
 
-impl<T, E> Deref for State<T, E> {
+impl<T, E> Deref for Content<T, E> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -610,19 +627,19 @@ impl<'a, T: ToString, E> Deref for BorrowMut<'a, T, E> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.state.value
+        &self.content.value
     }
 }
 
 impl<'a, T: ToString, E> DerefMut for BorrowMut<'a, T, E> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.state.value
+        &mut self.content.value
     }
 }
 
 impl<'a, T: ToString, E> Drop for BorrowMut<'a, T, E> {
     fn drop(&mut self) {
-        self.state.string = self.state.value.to_string();
-        self.state.error = None;
+        self.content.string = self.content.value.to_string();
+        self.content.error = None;
     }
 }
