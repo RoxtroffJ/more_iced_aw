@@ -2,7 +2,7 @@
 
 use iced::Color;
 
-/// Adds a color on top of an other one.
+/// Adds a [`Color`] on top of an other one.
 pub fn filter_color(color: Color, filter: Color) -> Color {
     let ac = color.a;
     let af = filter.a;

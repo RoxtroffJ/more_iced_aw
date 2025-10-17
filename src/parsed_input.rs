@@ -83,15 +83,15 @@ use iced::{
 
 use crate::helpers::filter_color;
 
-/// The content of the [ParsedInput] for a value of type `T` and parsing errors of type `E`.
+/// The content of the [`ParsedInput`] for a value of type `T` and parsing errors of type `E`.
 ///
-/// It implements [Deref] into `T`, which allows you to access the inner value.
-/// To modify `T`, you must first call [borrow_mut](Content::borrow_mut)
-/// and the outputed [BorrowMut] will implement [DerefMut] into `T` (see this [example](crate::parsed_input))
+/// It implements [`Deref`] into `T`, which allows you to access the inner value.
+/// To modify `T`, you must first call [`borrow_mut`](Content::borrow_mut)
+/// and the outputed [`BorrowMut`] will implement [`DerefMut`] into `T` (see this [`example`](crate::parsed_input))
 /// 
 /// # Assumptions
 /// 
-/// For a [ParsedInput] build on this [Content] to work as intendeed, 
+/// For a [`ParsedInput`] build on this [`Content`] to work as intendeed, 
 /// it is mendatory that for all `value: T`,
 /// `value.to_string().parse() == Ok(value)`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,9 +117,9 @@ impl<T, E> Content<T, E> {
 
     /// Mutably borrows the inner value (`T`), to then be able to modify it.
     ///
-    /// The returned [BorrowMut] implements [DerefMut<Target: T>]. 
+    /// The returned [`BorrowMut`] implements [`DerefMut<Target: T>`]. 
     /// When dropped, it will set the string of `self` (that is displayed
-    /// in the [ParsedInput]) to `value.to_string()`.
+    /// in the [`ParsedInput`]) to `value.to_string()`.
     pub fn borrow_mut(&mut self) -> BorrowMut<'_, T, E>
     where
         T: ToString,
@@ -137,7 +137,7 @@ impl<T, E> Content<T, E> {
         &self.error
     }
 
-    /// Updates the content with the given [Parsed].
+    /// Updates the content with the given [`Parsed`].
     /// 
     /// See this [example](crate::parsed_input) for recommended usage.
     pub fn update(&mut self, parsed: Parsed<T, E>) {
@@ -152,7 +152,7 @@ impl<T, E> Content<T, E> {
     }
 }
 
-/// An inner message that will be produced by the inner [TextInput].
+/// An inner message that will be produced by the inner [`TextInput`].
 #[derive(Debug, Clone)]
 enum InnerMessage {
     /// The user inputed a string.
@@ -166,8 +166,8 @@ enum InnerMessage {
 /// A string and parser result.
 ///
 /// You can't modify it unless you deconstruct it and rebuild it.
-/// It is used in the messages produced by a [ParsedInput] and
-/// allows to update a [Content]. 
+/// It is used in the messages produced by a [`ParsedInput`] and
+/// allows to update a [`Content`]. 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Parsed<T, E> {
     string: String,
@@ -175,7 +175,7 @@ pub struct Parsed<T, E> {
 }
 
 impl<T, E> Parsed<T, E> {
-    /// Builds a [Parsed] from a [String].
+    /// Builds a [`Parsed`] from a [`String`].
     pub fn from_string(str: &str) -> Self
     where
         T: FromStr<Err = E>,
@@ -186,7 +186,7 @@ impl<T, E> Parsed<T, E> {
         }
     }
 
-    /// Builds a [Parsed] from a value.
+    /// Builds a [`Parsed`] from a value.
     pub fn from_value(value: T) -> Self
     where
         T: ToString,
@@ -197,25 +197,25 @@ impl<T, E> Parsed<T, E> {
         }
     }
 
-    /// Gets the values contained in the [Parsed].
+    /// Gets the values contained in the [`Parsed`].
     pub fn take(self) -> (String, Result<T, E>) {
         (self.string, self.parsed)
     }
 
-    /// Returns a reference to the contained [String].
+    /// Returns a reference to the contained [`String`].
     pub fn get_string(&self) -> &String {
         &self.string
     }
 
-    /// Returns a reference to the contained parsed [Result]
+    /// Returns a reference to the contained parsed [`Result`]
     pub fn get_result(&self) -> &Result<T, E> {
         &self.parsed
     }
 }
 
-/// The [ParsedInput] widget.
+/// The [`ParsedInput`] widget.
 ///
-/// It is fundamentally a [TextInput] and therefore implements the same methods.
+/// It is fundamentally a [`TextInput`] and therefore implements the same methods.
 pub struct ParsedInput<'a, T, E, Message, Theme = iced::Theme, Renderer = iced::Renderer>
 where
     Renderer: iced::advanced::text::Renderer,
@@ -236,7 +236,7 @@ where
     Renderer: iced::advanced::text::Renderer,
     Theme: text_input::Catalog + 'a,
 {
-    /// Creates a new [ParsedInput] from a [Content].
+    /// Creates a new [`ParsedInput`] from a [`Content`].
     pub fn new(placeholder: &str, content: &'a Content<T, E>) -> Self {
         Self {
             content,
@@ -247,7 +247,7 @@ where
         }
     }
 
-    /// Sets the [Id] of the underlying [TextInput].
+    /// Sets the [`Id`] of the underlying [`TextInput`].
     pub fn id(self, id: impl Into<Id>) -> Self {
         Self {
             text_input: self.text_input.id(id),
@@ -255,7 +255,7 @@ where
         }
     }
 
-    /// Converts the underlying [TextInput] into a secure password input.
+    /// Converts the underlying [`TextInput`] into a secure password input.
     pub fn secure(self, is_secure: bool) -> Self {
         Self {
             text_input: self.text_input.secure(is_secure),
@@ -263,9 +263,9 @@ where
         }
     }
 
-    /// Sets the message that should be produced when some text is typed into the [ParsedInput].
+    /// Sets the message that should be produced when some text is typed into the [`ParsedInput`].
     ///
-    /// If this method is not called, the [ParsedInput] will be disabled.
+    /// If this method is not called, the [`ParsedInput`] will be disabled.
     pub fn on_input(self, on_input: impl Fn(Parsed<T, E>) -> Message + 'a) -> Self {
         Self {
             text_input: self.text_input.on_input(InnerMessage::Input),
@@ -274,9 +274,9 @@ where
         }
     }
 
-    /// Sets the message that should be produced when some text is typed into the [ParsedInput], if [Some].
+    /// Sets the message that should be produced when some text is typed into the [`ParsedInput`], if [`Some`].
     ///
-    /// If this method is not called, the [ParsedInput] will be disabled.
+    /// If this method is not called, the [`ParsedInput`] will be disabled.
     pub fn on_input_maybe(self, on_input: Option<impl Fn(Parsed<T, E>) -> Message + 'a>) -> Self {
         match on_input {
             Some(on_input) => self.on_input(on_input),
@@ -284,7 +284,7 @@ where
         }
     }
 
-    /// Sets the message that should be produced when the [ParsedInput] is
+    /// Sets the message that should be produced when the [`ParsedInput`] is
     /// focused and the enter key is pressed.
     pub fn on_submit(mut self, on_submit: Message) -> Self {
         self.text_input = self.text_input.on_submit(InnerMessage::Submit);
@@ -292,7 +292,7 @@ where
         self
     }
 
-    /// Sets the message that should be produced when the [ParsedInput] is
+    /// Sets the message that should be produced when the [`ParsedInput`] is
     /// focused and the enter key is pressed, if `Some`.
     pub fn on_submit_maybe(self, on_submit: Option<Message>) -> Self {
         match on_submit {
@@ -302,7 +302,7 @@ where
     }
 
     /// Sets the message that should be produced when some text is pasted into
-    /// the [ParsedInput].
+    /// the [`ParsedInput`].
     pub fn on_paste(mut self, on_paste: impl Fn(Parsed<T, E>) -> Message + 'a) -> Self {
         self.text_input = self.text_input.on_paste(InnerMessage::Paste);
         self.on_paste = Some(Box::new(on_paste));
@@ -310,7 +310,7 @@ where
     }
 
     /// Sets the message that should be produced when some text is pasted into
-    /// the [ParsedInput], if `Some`.
+    /// the [`ParsedInput`], if `Some`.
     pub fn on_paste_maybe(self, on_paste: Option<impl Fn(Parsed<T, E>) -> Message + 'a>) -> Self {
         match on_paste {
             Some(on_paste) => self.on_paste(on_paste),
@@ -318,7 +318,7 @@ where
         }
     }
 
-    /// Sets the [`Font`] of the [ParsedInput].
+    /// Sets the [`Font`] of the [`ParsedInput`].
     ///
     /// [`Font`]: text::Renderer::Font
     pub fn font(mut self, font: Renderer::Font) -> Self {
@@ -326,45 +326,45 @@ where
         self
     }
 
-    /// Sets the [`Icon`] of the [ParsedInput].
+    /// Sets the [`Icon`] of the [`ParsedInput`].
     pub fn icon(mut self, icon: Icon<Renderer::Font>) -> Self {
         self.text_input = self.text_input.icon(icon);
         self
     }
 
-    /// Sets the width of the [ParsedInput].
+    /// Sets the width of the [`ParsedInput`].
     pub fn width(mut self, width: impl Into<Length>) -> Self {
         self.text_input = self.text_input.width(width);
         self
     }
 
-    /// Sets the [`Padding`] of the [ParsedInput].
+    /// Sets the [`Padding`] of the [`ParsedInput`].
     pub fn padding<P: Into<Padding>>(mut self, padding: P) -> Self {
         self.text_input = self.text_input.padding(padding);
         self
     }
 
-    /// Sets the text size of the [ParsedInput].
+    /// Sets the text size of the [`ParsedInput`].
     pub fn size(mut self, size: impl Into<Pixels>) -> Self {
         self.text_input = self.text_input.size(size);
         self
     }
 
-    /// Sets the [`text::LineHeight`] of the [ParsedInput].
+    /// Sets the [`text::LineHeight`] of the [`ParsedInput`].
     pub fn line_height(mut self, line_height: impl Into<text::LineHeight>) -> Self {
         self.text_input = self.text_input.line_height(line_height);
         self
     }
 
-    /// Sets the horizontal alignment of the [ParsedInput].
+    /// Sets the horizontal alignment of the [`ParsedInput`].
     pub fn align_x(mut self, alignment: impl Into<alignment::Horizontal>) -> Self {
         self.text_input = self.text_input.align_x(alignment);
         self
     }
 
-    /// Sets the style of the [ParsedInput].
+    /// Sets the style of the [`ParsedInput`].
     ///
-    /// Compared to a style function of a [TextInput], this one also takes
+    /// Compared to a style function of a [`TextInput`], this one also takes
     /// an additionnal bool which indicates if the string matched the value (true)
     /// or not (false).
     pub fn style(mut self, style: impl Fn(&Theme, Status, bool) -> Style + 'a) -> Self
@@ -379,7 +379,7 @@ where
         self
     }
 
-    /// Sets the style class of the [ParsedInput].
+    /// Sets the style class of the [`ParsedInput`].
     pub fn class(mut self, class: impl Into<Theme::Class<'a>>) -> Self {
         self.text_input = self.text_input.class(class);
         self
@@ -531,15 +531,15 @@ where
     }
 }
 
-/// A mutable borrow of the inner value of a [Content].
+/// A mutable borrow of the inner value of a [`Content`].
 /// 
 /// It allows to change said value without having the value
-/// and the string of the [Content] going out of sync.
+/// and the string of the [`Content`] going out of sync.
 pub struct BorrowMut<'a, T: ToString, E> {
     content: &'a mut Content<T, E>,
 }
 
-/// Returns a [text_input::Style] and applies a color to it's background when the [ParsedInput] has an invalid [String].
+/// Returns a [`text_input::Style`] and applies a color to it's background when the [`ParsedInput`] has an invalid [`String`].
 pub fn color_on_err<Theme>(
     style: impl Fn(&Theme, Status) -> Style,
     color: Color,
