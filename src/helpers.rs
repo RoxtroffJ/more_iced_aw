@@ -11,7 +11,7 @@ pub fn filter_color(color: Color, filter: Color) -> Color {
 
     let aux = |c, f| (c * ac * (1.0 - af) + f * af) / at;
 
-    Color::from_linear_rgba(
+    Color::from_rgba(
         aux(color.r, filter.r),
         aux(color.g, filter.g),
         aux(color.b, filter.b),
