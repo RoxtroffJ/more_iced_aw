@@ -71,17 +71,16 @@ use std::{
 };
 
 use iced::{
-    Background, Color, Gradient, Length, Padding, Pixels,
+    Color, Length, Padding, Pixels,
     advanced::{Shell, Widget, graphics::core::Element, text},
     alignment,
-    gradient::{ColorStop, Linear},
     widget::{
         TextInput,
         text_input::{self, Icon, Id, Status, Style, StyleFn},
     },
 };
 
-use crate::helpers::filter_color;
+use crate::helpers::filter_background;
 
 /// The content of the [`ParsedInput`] for a value of type `T` and parsing errors of type `E`.
 ///
@@ -549,24 +548,7 @@ pub fn color_on_err<Theme>(
         if valid {
             style
         } else {
-            let background = match style.background {
-                iced::Background::Color(c) => Background::Color(filter_color(c, color)),
-                iced::Background::Gradient(gradient) => match gradient {
-                    iced::Gradient::Linear(linear) => {
-                        let new_stops = linear.stops.map(|x| {
-                            x.map(|stop| ColorStop {
-                                color: filter_color(stop.color, color),
-                                ..stop
-                            })
-                        });
-
-                        Background::Gradient(Gradient::Linear(Linear {
-                            stops: new_stops,
-                            ..linear
-                        }))
-                    }
-                },
-            };
+            let background = filter_background(style.background, color);
 
             text_input::Style {
                 background,
