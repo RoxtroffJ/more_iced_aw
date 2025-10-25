@@ -558,6 +558,26 @@ pub fn color_on_err<Theme>(
     }
 }
 
+/// Returns a [`text_input::Style`] and applies the [danger](iced::theme::Palette::danger) color of the theme 
+/// to it's background when the [`ParsedInput`] has an invalid [`String`].
+pub fn danger_on_err(
+    style: impl Fn(&iced::Theme, Status) -> Style,
+) -> impl Fn(&iced::Theme, Status, bool) -> Style {
+    move |theme, status, valid| {
+        let style = style(theme, status);
+        if valid {
+            style
+        } else {
+            let background = filter_background(style.background, theme.palette().danger);
+
+            text_input::Style {
+                background,
+                ..style
+            }
+        }
+    }
+}
+
 impl<T: Default + ToString, E> Default for Content<T, E> {
     fn default() -> Self {
         Self::new(T::default())
