@@ -1,6 +1,6 @@
 //! Some helper functions.
 
-use iced::{gradient::{ColorStop, Linear}, Background, Color, Gradient};
+use iced::{Background, Color, Gradient, gradient::{ColorStop, Linear}};
 
 /// Adds a [`Color`] on top of an other one.
 pub fn filter_color(color: Color, filter: Color) -> Color {
@@ -40,3 +40,6 @@ pub fn filter_background(background: Background, filter: Color) -> Background {
         },
     }
 }
+
+mod element_vec;
+pub use element_vec::*;
