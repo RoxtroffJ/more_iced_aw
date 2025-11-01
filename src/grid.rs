@@ -197,6 +197,8 @@ where
             axis.size_pack(limits.max())
         };
 
+        let (main_length, cross_length) = axis.pack(self.width, self.height);
+
         let nb_columns = self.rows.iter().fold(0, |len, vec| len.max(vec.len()));
         let nb_rows = self.rows.len();
 
@@ -211,8 +213,8 @@ where
 
         let mut main = main_max;
 
-        let mut prim_main_fill_sum = vec![0; nb_prim];
-        let mut sec_cross_fill_sum = vec![0; nb_sec];
+        let mut sec_main_factor = vec![0; nb_sec];
+        let mut prim_cross_factor = vec![0; nb_prim];
 
         let mut sec_main = vec![0f32; nb_sec];
 
@@ -249,15 +251,12 @@ where
                 let main_fill_factor = main_len.fill_factor();
                 let cross_fill_factor = cross_len.fill_factor();
 
-                prim_main_fill_sum[i] += main_fill_factor;
-                sec_cross_fill_sum[j] += cross_fill_factor;
+                prim_cross_factor[i] = prim_cross_factor[i].max(cross_fill_factor);
+                sec_main_factor[j] = sec_main_factor[j].max(main_fill_factor);
 
                 // If fixed main, compute it and update
                 if main_fill_factor == 0 {
-                    let (max_width, max_height) = axis.pack(
-                        main,
-                        cross_max
-                    );
+                    let (max_width, max_height) = axis.pack(main, cross_max);
 
                     let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
                     let layout = elt.as_widget().layout(tree, renderer, &child_limits);
@@ -271,72 +270,38 @@ where
             main -= sec_main[j];
         }
 
-        // Get fill factor for whole sec (and prim).
-        let mut sec_main_factor = vec![0f32; nb_sec];
-        let mut prim_cross_factor = vec![0f32; nb_prim];
-
-        for j in 0..nb_sec {
-            for i in 0..nb_prim {
-                let elt = {
-                    let (a, b) = axis.pack(i, j);
-
-                    match elts_trees.get(a).and_then(|vec| vec.get(b)) {
-                        Some(v) => v.0,
-                        None => continue,
-                    }
-                };
-
-                let (current_main, current_cross) = {
-                    let (len_main, len_cross) = axis.size_pack(elt.as_widget().size());
-                    (
-                        len_main.fill_factor() as f32,
-                        len_cross.fill_factor() as f32,
-                    )
-                };
-                sec_main_factor[j] = sec_main_factor[j].max(if prim_main_fill_sum[i] != 0 {
-                    current_main / prim_main_fill_sum[i] as f32
-                } else {
-                    0.
-                });
-                prim_cross_factor[i] = prim_cross_factor[i].max(if sec_cross_fill_sum[j] != 0 {
-                    current_cross / sec_cross_fill_sum[j] as f32
-                } else {
-                    0.
-                });
-            }
-        }
-
         // Get the final main of the secs.
-        let mut not_clamped: HashSet<_> = (0..nb_sec).collect();
+        if main_length != Shrink {
+            let mut not_clamped: HashSet<_> = (0..nb_sec).collect();
+            main = max_main - main_total_spacing;
 
-        main = max_main - main_total_spacing;
+            let mut fill_sum = sec_main_factor.iter().sum::<u16>();
+            let mut finished = false;
 
-        let mut fill_sum = sec_main_factor.iter().sum::<f32>();
-        let mut finished = false;
-
-        while !finished && fill_sum > 0. {
-            finished = true;
-            let indexes: Vec<_> = not_clamped.iter().cloned().collect();
-            for j in indexes {
-                let factor = sec_main_factor[j];
-                let size = factor / fill_sum * main;
-                let sec_size = sec_main[j];
-                if size < sec_size {
-                    finished = false;
-                    fill_sum -= factor;
-                    not_clamped.remove(&j);
-                    sec_main_factor[j] = 0.;
-                    main -= sec_size
+            while !finished && fill_sum > 0 {
+                finished = true;
+                let indexes: Vec<_> = not_clamped.iter().cloned().collect();
+                for j in indexes {
+                    let factor = sec_main_factor[j];
+                    let size = factor as f32 / fill_sum as f32 * main;
+                    let sec_size = sec_main[j];
+                    if size < sec_size {
+                        finished = false;
+                        fill_sum -= factor;
+                        not_clamped.remove(&j);
+                        sec_main_factor[j] = 0;
+                        main -= sec_size
+                    }
                 }
             }
-        }
 
-        for j in 0..nb_sec {
-            sec_main[j] = sec_main[j].max(if fill_sum > 0. {
-                sec_main_factor[j] / fill_sum * main
-            } else {
-                0.
-            })
+            for j in 0..nb_sec {
+                sec_main[j] = sec_main[j].max(if fill_sum > 0 {
+                    sec_main_factor[j] as f32 / fill_sum as f32 * main
+                } else {
+                    0.
+                })
+            }
         }
 
         // ==== Resolve cross ====
@@ -349,9 +314,8 @@ where
             .map(|vec| vec.iter().map(|_| Node::default()).collect())
             .collect();
 
-        // Compute min cross and cross fill factor
+        // Compute min cross
         let mut prim_cross = vec![0f32; nb_prim];
-        let mut prim_cross_factor = vec![0f32; nb_prim];
 
         for i in 0..nb_prim {
             for j in 0..nb_sec {
@@ -382,12 +346,6 @@ where
 
                     prim_cross[i] = prim_cross[i].max(size_cross);
                     nodes[a][b] = layout;
-                } else {
-                    prim_cross_factor[i] = prim_cross_factor[i].max(if sec_cross_fill_sum[j] != 0 {
-                        cross_factor as f32 / sec_cross_fill_sum[j] as f32
-                    } else {
-                        0.
-                    })
                 }
             }
 
@@ -395,36 +353,39 @@ where
         }
 
         // Compute main cross
-        let mut not_clamped: HashSet<_> = (0..nb_prim).collect();
 
-        cross = max_cross - cross_total_spacing;
+        if cross_length != Shrink {
+            let mut not_clamped: HashSet<_> = (0..nb_prim).collect();
 
-        let mut fill_sum = prim_cross_factor.iter().sum::<f32>();
-        let mut finished = false;
+            cross = max_cross - cross_total_spacing;
 
-        while !finished && fill_sum > 0. {
-            finished = true;
-            let indexes: Vec<_> = not_clamped.iter().cloned().collect();
-            for i in indexes {
-                let factor = prim_cross_factor[i];
-                let size = factor / fill_sum * cross;
-                let prim_size = prim_cross[i];
-                if size < prim_size {
-                    finished = false;
-                    fill_sum -= factor;
-                    not_clamped.remove(&i);
-                    prim_cross_factor[i] = 0.;
-                    cross -= prim_size
+            let mut fill_sum = prim_cross_factor.iter().sum::<u16>();
+            let mut finished = false;
+
+            while !finished && fill_sum > 0 {
+                finished = true;
+                let indexes: Vec<_> = not_clamped.iter().cloned().collect();
+                for i in indexes {
+                    let factor = prim_cross_factor[i];
+                    let size = factor as f32 / fill_sum as f32 * cross;
+                    let prim_size = prim_cross[i];
+                    if size < prim_size {
+                        finished = false;
+                        fill_sum -= factor;
+                        not_clamped.remove(&i);
+                        prim_cross_factor[i] = 0;
+                        cross -= prim_size
+                    }
                 }
             }
-        }
 
-        for i in 0..nb_prim {
-            prim_cross[i] = prim_cross[i].max(if fill_sum > 0. {
-                prim_cross_factor[i] / fill_sum * cross
-            } else {
-                0.
-            })
+            for i in 0..nb_prim {
+                prim_cross[i] = prim_cross[i].max(if fill_sum > 0 {
+                    prim_cross_factor[i] as f32 / fill_sum as f32 * cross
+                } else {
+                    0.
+                })
+            }
         }
 
         // Compute all nodes
@@ -504,7 +465,8 @@ where
             Size {
                 width: intrinsic_width,
                 height: intrinsic_height,
-            }.expand(self.padding),
+            }
+            .expand(self.padding),
         );
 
         Node::with_children(
