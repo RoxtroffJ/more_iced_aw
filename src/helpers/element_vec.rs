@@ -172,10 +172,6 @@ macro_rules! element_vec {
     () => ($crate::helpers::ElementVec::new());
     ($elem:expr; $n:expr) => ($crate::helpers::ElementVec::from_elem($elem, $n));
     ($($x:expr),+ $(,)?) => ($crate::helpers::ElementVec::from(
-        <[_]>::into_vec(
-            // Using the intrinsic produces a dramatic improvement in stack usage for
-            // unoptimized programs using this code path to construct large Vecs.
-            std::boxed::box_new([$(iced::advanced::graphics::core::Element::from($x)),+])
-        )
+        vec![$(iced::advanced::graphics::core::Element::from($x)),+]
     ));
 }
