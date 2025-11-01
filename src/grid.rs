@@ -4,12 +4,14 @@
 //! Arguably, the column sizing technique is different.
 //! The shrink should be better more consistent with [`row`](iced::widget::Row) and [`column`](iced::widget::Column),
 //! but this grid implementation is also probably slower.
+//!
+//! See the `grid` example for an example.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt::Display};
 
 use iced::{
     Length::{self, Shrink},
-    Padding, Point, Size,
+    Padding, Pixels, Point, Size,
     advanced::{
         self, Widget,
         graphics::core::Element,
@@ -35,15 +37,132 @@ pub struct Grid<'a, Message, Theme, Renderer> {
     axis: Axis,
 }
 
+impl<'a, Message, Theme, Renderer> Grid<'a, Message, Theme, Renderer> {
+    /// Creates a new empty grid.
+    pub fn new() -> Self {
+        Self {
+            rows: Vec::new(),
+            width: Shrink,
+            height: Shrink,
+            padding: Padding::ZERO,
+            horizontal_align: Horizontal::Left,
+            vertical_align: Vertical::Center,
+            column_spacing: 0.,
+            row_spacing: 0.,
+            axis: Axis::Horizontal,
+        }
+    }
+
+    /// Sets the spacing between the columns.
+    pub fn column_spacing(mut self, spacing: impl Into<Pixels>) -> Self {
+        self.column_spacing = spacing.into().0;
+        self
+    }
+
+    /// Sets the spacing between the rows.
+    pub fn row_spacing(mut self, spacing: impl Into<Pixels>) -> Self {
+        self.row_spacing = spacing.into().0;
+        self
+    }
+
+    /// Sets the padding of the grid.
+    pub fn padding(mut self, padding: impl Into<Padding>) -> Self {
+        self.padding = padding.into();
+        self
+    }
+
+    /// Sets the width of the grid.
+    pub fn width(mut self, width: impl Into<Length>) -> Self {
+        self.width = width.into();
+        self
+    }
+
+    /// Sets the height of the grid.
+    pub fn height(mut self, height: impl Into<Length>) -> Self {
+        self.height = height.into();
+        self
+    }
+
+    /// Sets the horizontal alignment of the columns.
+    pub fn align_x(mut self, horizontal: impl Into<Horizontal>) -> Self {
+        self.horizontal_align = horizontal.into();
+        self
+    }
+
+    /// Sets the vertical alignment of the rows.
+    pub fn align_y(mut self, vertical: impl Into<Vertical>) -> Self {
+        self.vertical_align = vertical.into();
+        self
+    }
+
+    /// Sets the main axis of the grid.
+    ///
+    /// This main axis dictates how the size of the cells are computed.
+    /// * [`Axis::Horizontal`] => cells are layed in rows, and then rows are placed on top of each other.
+    /// * [`Axis::Vertical`] => cells are layed in columns, and then placed next to each other.
+    pub fn main_axis(mut self, axis: impl Into<Axis>) -> Self {
+        self.axis = axis.into();
+        self
+    }
+
+    /// Adds a row to the grid.
+    pub fn push_row<E>(mut self, row: impl IntoIterator<Item = E>) -> Self
+    where
+        E: Into<Element<'a, Message, Theme, Renderer>>,
+        Renderer: advanced::Renderer,
+    {
+        self.push_row_mut(row);
+        self
+    }
+
+    /// Same as [`push_row`](Self::push_row) but takes a reference to `self`.
+    pub fn push_row_mut<E>(&mut self, row: impl IntoIterator<Item = E>)
+    where
+        E: Into<Element<'a, Message, Theme, Renderer>>,
+        Renderer: advanced::Renderer,
+    {
+        let row = row.into_iter().map(Into::into).collect::<Vec<_>>();
+
+        for e in row.iter() {
+            let size = e.as_widget().size_hint();
+
+            self.width.enclose(size.width);
+            self.height.enclose(size.height);
+        }
+
+        self.rows.push(row);
+    }
+
+    /// Adds multiple rows to the grid.
+    pub fn extend<E, I>(mut self, rows: impl IntoIterator<Item = I>) -> Self
+    where
+        E: Into<Element<'a, Message, Theme, Renderer>>,
+        I: IntoIterator<Item = E>,
+        Renderer: advanced::Renderer,
+    {
+        self.extend_mut(rows);
+        self
+    }
+
+    /// Same as [`extend`](Self::extend) but takes a reference to `self`.
+    pub fn extend_mut<E, I>(&mut self, rows: impl IntoIterator<Item = I>)
+    where
+        E: Into<Element<'a, Message, Theme, Renderer>>,
+        I: IntoIterator<Item = E>,
+        Renderer: advanced::Renderer,
+    {
+        rows.into_iter().for_each(|row| self.push_row_mut(row));
+    }
+}
+
 impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for Grid<'a, Message, Theme, Renderer>
 where
     Renderer: advanced::Renderer,
 {
     fn diff(&self, tree: &mut iced::advanced::widget::Tree) {
-        for row in &self.rows {
-            tree.diff_children(row);
-        }
+        let children: Vec<_> = self.get_elements().collect();
+        tree.diff_children(&children);
     }
 
     fn children(&self) -> Vec<advanced::widget::Tree> {
@@ -96,14 +215,6 @@ where
         let mut sec_cross_fill_sum = vec![0; nb_sec];
 
         let mut sec_main = vec![0f32; nb_sec];
-        let mut prim_cross = vec![
-            match axis {
-                Axis::Horizontal if self.height == Shrink => 0f32,
-                Axis::Vertical if self.width == Shrink => 0f32,
-                _ => cross_max,
-            };
-            nb_prim
-        ]; // row height or column width
 
         // Map trees to elements.
         let mut elts_trees: Vec<Vec<_>> = {
@@ -121,8 +232,8 @@ where
         for j in 0..nb_sec {
             for i in 0..nb_prim {
                 // Get element and tree
+                let (a, b) = axis.pack(i, j);
                 let (elt, tree) = {
-                    let (a, b) = axis.pack(i, j);
                     match elts_trees.get_mut(a).and_then(|vec| vec.get_mut(b)) {
                         Some(v) => v,
                         None => continue,
@@ -145,22 +256,15 @@ where
                 if main_fill_factor == 0 {
                     let (max_width, max_height) = axis.pack(
                         main,
-                        if cross_fill_factor == 0 {
-                            // If not expanding, get all the cross
-                            cross_max
-                        } else {
-                            // If expanding, no more than previous
-                            prim_cross[i]
-                        },
+                        cross_max
                     );
 
                     let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
                     let layout = elt.as_widget().layout(tree, renderer, &child_limits);
 
-                    let (main, cross) = axis.size_pack(layout.size());
+                    let main = axis.main(layout.size());
 
                     sec_main[j] = sec_main[j].max(main);
-                    prim_cross[i] = prim_cross[i].max(cross);
                 }
             }
 
@@ -175,6 +279,7 @@ where
             for i in 0..nb_prim {
                 let elt = {
                     let (a, b) = axis.pack(i, j);
+
                     match elts_trees.get(a).and_then(|vec| vec.get(b)) {
                         Some(v) => v.0,
                         None => continue,
@@ -204,7 +309,7 @@ where
         // Get the final main of the secs.
         let mut not_clamped: HashSet<_> = (0..nb_sec).collect();
 
-        main = main.max(0.);
+        main = max_main - main_total_spacing;
 
         let mut fill_sum = sec_main_factor.iter().sum::<f32>();
         let mut finished = false;
@@ -292,7 +397,7 @@ where
         // Compute main cross
         let mut not_clamped: HashSet<_> = (0..nb_prim).collect();
 
-        cross = cross.max(0.);
+        cross = max_cross - cross_total_spacing;
 
         let mut fill_sum = prim_cross_factor.iter().sum::<f32>();
         let mut finished = false;
@@ -381,11 +486,11 @@ where
             }
             b = 0;
             x = start_x;
-            a += 1;
             y += match axis {
                 Axis::Horizontal => prim_cross[a],
                 Axis::Vertical => sec_main[a],
-            }
+            } + self.row_spacing;
+            a += 1;
         }
 
         let (intrinsic_width, intrinsic_height) = axis.pack(
@@ -399,11 +504,11 @@ where
             Size {
                 width: intrinsic_width,
                 height: intrinsic_height,
-            },
+            }.expand(self.padding),
         );
 
         Node::with_children(
-            size.expand(self.padding),
+            size, // size.expand(self.padding),
             nodes.into_iter().flatten().collect(),
         )
     }
@@ -527,9 +632,10 @@ where
     }
 }
 
-impl<'a, Message: 'a, Theme: 'a, Renderer: 'a> From<Grid<'a, Message, Theme, Renderer>> for Element<'a, Message, Theme, Renderer> 
-where 
-    Renderer: advanced::Renderer
+impl<'a, Message: 'a, Theme: 'a, Renderer: 'a> From<Grid<'a, Message, Theme, Renderer>>
+    for Element<'a, Message, Theme, Renderer>
+where
+    Renderer: advanced::Renderer,
 {
     fn from(value: Grid<'a, Message, Theme, Renderer>) -> Self {
         Self::new(value)
@@ -551,7 +657,7 @@ impl<'a, Message, Theme, Renderer> Grid<'a, Message, Theme, Renderer> {
 /// The main axis of a [Grid].
 ///
 /// See the [Grid::main_axis] method for more info.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Axis {
     /// The horizontal axis
     Horizontal,
@@ -561,12 +667,12 @@ pub enum Axis {
 }
 
 impl Axis {
-    // fn main<T>(&self, size: Size<T>) -> T {
-    //     match self {
-    //         Axis::Horizontal => size.width,
-    //         Axis::Vertical => size.height,
-    //     }
-    // }
+    fn main<T>(&self, size: Size<T>) -> T {
+        match self {
+            Axis::Horizontal => size.width,
+            Axis::Vertical => size.height,
+        }
+    }
 
     fn cross<T>(&self, size: Size<T>) -> T {
         match self {
@@ -587,5 +693,18 @@ impl Axis {
             Axis::Horizontal => (size.width, size.height),
             Axis::Vertical => (size.height, size.width),
         }
+    }
+}
+
+impl Display for Axis {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Axis::Horizontal => "Horizontal",
+                Axis::Vertical => "Vertical",
+            }
+        )
     }
 }
