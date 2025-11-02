@@ -150,6 +150,12 @@ impl<T, E> Content<T, E> {
             Err(err) => self.error = Some(err),
         }
     }
+
+    /// Consumes the content and returns the value, 
+    /// even if the text is not representative of that value.
+    pub fn into_value(self) -> T {
+        self.value
+    }
 }
 
 /// An inner message that will be produced by the inner [`TextInput`].
