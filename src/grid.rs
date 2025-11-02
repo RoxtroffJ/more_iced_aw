@@ -53,6 +53,20 @@ impl<'a, Message, Theme, Renderer> Grid<'a, Message, Theme, Renderer> {
         }
     }
 
+    /// Creates a [`Grid`] with the given rows.
+    /// 
+    /// Note that the rows will not be checked, so the width and height of the [`Grid`] will be [`Shrink`],
+    /// even if some elements are [`Fill`](Length::Fill)
+    pub fn with_rows<E, I>(rows: impl IntoIterator<Item = I>) -> Self 
+    where 
+        E: Into<Element<'a, Message, Theme, Renderer>>,
+        I: IntoIterator<Item = E>,
+    {
+        let mut grid = Self::new();
+        grid.rows.extend(rows.into_iter().map(|row| row.into_iter().map(Into::into).collect()));
+        grid
+    }
+
     /// Sets the spacing between the columns.
     pub fn column_spacing(mut self, spacing: impl Into<Pixels>) -> Self {
         self.column_spacing = spacing.into().0;

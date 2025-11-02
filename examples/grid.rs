@@ -203,8 +203,7 @@ impl App {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let mut grid: Element<'_, _> = grid::Grid::new()
-            .extend(self.grid.iter().enumerate().map(|(i, vec)| {
+        let mut grid: Element<'_, _> = grid::Grid::with_rows(self.grid.iter().enumerate().map(|(i, vec)| {
                 vec.iter().enumerate().map(move |(j, cell)| {
                     cell.to_element(move |action| Message::Forward(i, j, action))
                 })

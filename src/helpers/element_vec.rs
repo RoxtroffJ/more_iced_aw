@@ -167,7 +167,7 @@ impl<'a, 'b, Message, Theme, Renderer> IntoIterator
 #[macro_export]
 /// Same as [`vec`](std::vec!), but builds a [`ElementVec`].
 ///
-/// This means that the elements provided can just implement [Into<Element>].
+/// This means that the elements provided can just implement [`Into<Element>`].
 macro_rules! element_vec {
     () => ($crate::helpers::ElementVec::new());
     ($elem:expr; $n:expr) => ($crate::helpers::ElementVec::from_elem($elem, $n));
