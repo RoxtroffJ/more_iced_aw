@@ -1766,9 +1766,10 @@ dependencies = [
 
 [[package]]
 name = "more_iced_aw"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "iced",
+ "serde",
 ]
 
 [[package]]

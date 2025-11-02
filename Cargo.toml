@@ -1,7 +1,11 @@
 [package]
 name = "more_iced_aw"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2024"
 
 [dependencies]
 iced = {version = "0.13.1", features = ["advanced"]}
+serde = {version = "1", features = ["derive"], optional = true}
+
+[features]
+serde = ["dep:serde"]

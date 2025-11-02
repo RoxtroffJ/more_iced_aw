@@ -94,6 +94,7 @@ use crate::helpers::filter_background;
 /// it is mendatory that for all `value: T`,
 /// `value.to_string().parse() == Ok(value)`.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Content<T, E> {
     value: T,
     string: String,
