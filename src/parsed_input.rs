@@ -45,7 +45,7 @@
 //!         .on_submit(Message::Submit);
 //!         
 //!         let row = row![input]
-//!         .push_maybe(
+//!         .push(
 //!             self
 //!             .content
 //!             .get_error()
@@ -60,7 +60,7 @@
 //! }
 //!
 //! fn main() -> iced::Result {
-//!     iced::run("Parsed Input", App::update, App::view)
+//!     iced::run(App::update, App::view)
 //! }
 //! ```
 
@@ -71,12 +71,8 @@ use std::{
 };
 
 use iced::{
-    Color, Length, Padding, Pixels,
-    advanced::{Shell, Widget, graphics::core::Element, text},
-    alignment,
-    widget::{
-        TextInput,
-        text_input::{self, Icon, Id, Status, Style, StyleFn},
+    Color, Length, Padding, Pixels, advanced::{Shell, Widget, graphics::core::Element, text}, alignment, widget::{
+        Id, TextInput, text_input::{self, Icon, Status, Style, StyleFn},
     },
 };
 
@@ -152,7 +148,7 @@ impl<T, E> Content<T, E> {
     }
 
     /// Consumes the content and returns the value, 
-    /// even if the text is not representative of that value.
+    /// even if the text is an error and therefore not representative of that value.
     pub fn into_value(self) -> T {
         self.value
     }
@@ -415,21 +411,16 @@ where
     }
 
     fn size(&self) -> iced::Size<Length> {
-        <TextInput<'_, _, _, _> as Widget<_, _, _>>::size(&self.text_input)
+        Widget::size(&self.text_input)
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut iced::advanced::widget::Tree,
         renderer: &Renderer,
         limits: &iced::advanced::layout::Limits,
     ) -> iced::advanced::layout::Node {
-        <TextInput<'_, _, _, _> as Widget<_, _, _>>::layout(
-            &self.text_input,
-            tree,
-            renderer,
-            limits,
-        )
+        Widget::layout(&mut self.text_input, tree, renderer, limits)
     }
 
     fn draw(
@@ -442,7 +433,7 @@ where
         cursor: iced::advanced::mouse::Cursor,
         viewport: &iced::Rectangle,
     ) {
-        <TextInput<'_, _, _, _> as Widget<_, _, _>>::draw(
+        Widget::draw(
             &self.text_input,
             tree,
             renderer,
@@ -455,7 +446,7 @@ where
     }
 
     fn operate(
-        &self,
+        &mut self,
         state: &mut iced::advanced::widget::Tree,
         layout: iced::advanced::Layout<'_>,
         renderer: &Renderer,
@@ -464,21 +455,22 @@ where
         self.text_input.operate(state, layout, renderer, operation);
     }
 
-    fn on_event(
+    fn update(
         &mut self,
-        state: &mut iced::advanced::widget::Tree,
-        event: iced::Event,
+        tree: &mut iced::advanced::widget::Tree,
+        event: &iced::Event,
         layout: iced::advanced::Layout<'_>,
         cursor: iced::advanced::mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn iced::advanced::Clipboard,
         shell: &mut iced::advanced::Shell<'_, Message>,
         viewport: &iced::Rectangle,
-    ) -> iced::advanced::graphics::core::event::Status {
+    ) {
+        // Update inner text input
         let mut messages = Vec::new();
         let mut sub_shell = Shell::new(&mut messages);
-        let status = self.text_input.on_event(
-            state,
+        self.text_input.update(
+            tree,
             event,
             layout,
             cursor,
@@ -487,6 +479,8 @@ where
             &mut sub_shell,
             viewport,
         );
+
+        // Handle inner messages
 
         shell.merge(sub_shell, |inner| match inner {
             InnerMessage::Input(str) => self
@@ -504,9 +498,7 @@ where
                 .as_ref()
                 .cloned()
                 .expect("Should have submit msg"),
-        });
-
-        status
+        })
     }
 
     fn mouse_interaction(

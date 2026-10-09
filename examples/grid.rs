@@ -5,16 +5,11 @@ use std::{
 };
 
 use iced::{
-    Element,
-    Length::{self, *},
-    alignment::{
+    Element, Length::{self, *}, alignment::{
         Horizontal::{self, Left},
         Vertical::{self, Top},
-    },
-    color,
-    widget::{
-        ComboBox, Row, center, checkbox, column, combo_box, container, row, text_input,
-        vertical_rule,
+    }, color, widget::{
+        ComboBox, Row, center, checkbox, column, combo_box, container, grid as iced_grid, row, rule, text, text_input,
     },
 };
 use more_iced_aw::{
@@ -25,7 +20,7 @@ use more_iced_aw::{
 // An interactive grid to showcase how grids works.
 
 fn main() -> iced::Result {
-    iced::run("Grid", App::update, App::view)
+    iced::run(App::update, App::view)
 }
 
 /// A cell the bounds of which are clearly visible.
@@ -58,7 +53,9 @@ enum CellAction {
 }
 
 impl Cell {
-    fn width_line<'a, Renderer: iced::advanced::text::Renderer + 'a>(&'a self) -> Row<'a, CellAction, iced::Theme, Renderer> {
+    fn width_line<'a, Renderer: iced::advanced::text::Renderer + 'a>(
+        &'a self,
+    ) -> Row<'a, CellAction, iced::Theme, Renderer> {
         let width_combo_box = ComboBox::new(
             &self.length_state,
             "",
@@ -67,7 +64,7 @@ impl Cell {
         )
         .width(100);
         row!["Width:", width_combo_box]
-            .push_maybe(match &*self.width {
+            .push(match &*self.width {
                 FillPortion(_) => Some(Element::from(
                     ParsedInput::new("Fill Portion", &self.width_int_parsed)
                         .style(parsed_input::danger_on_err(text_input::default))
@@ -87,7 +84,9 @@ impl Cell {
             .align_y(Vertical::Center)
     }
 
-    fn height_line<'a, Renderer: iced::advanced::text::Renderer + 'a>(&'a self) -> Row<'a, CellAction, iced::Theme, Renderer> {
+    fn height_line<'a, Renderer: iced::advanced::text::Renderer + 'a>(
+        &'a self,
+    ) -> Row<'a, CellAction, iced::Theme, Renderer> {
         let height_combo_box = ComboBox::new(
             &self.length_state,
             "",
@@ -97,7 +96,7 @@ impl Cell {
         .width(100);
 
         row!["Height:", height_combo_box]
-            .push_maybe(match &*self.height {
+            .push(match &*self.height {
                 FillPortion(_) => Some(Element::from(
                     ParsedInput::new("Fill Portion", &self.height_int_parsed)
                         .style(parsed_input::danger_on_err(text_input::default))
@@ -203,31 +202,68 @@ impl App {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let mut grid: Element<'_, _> = grid::Grid::with_rows(self.grid.iter().enumerate().map(|(i, vec)| {
-                vec.iter().enumerate().map(move |(j, cell)| {
-                    cell.to_element(move |action| Message::Forward(i, j, action))
+        // This crate's grid
+
+        let this_grid = grid::Grid::with_rows(self.grid.iter().enumerate().map(|(i, vec)| {
+            vec.iter()
+                .enumerate()
+                .map(move |(j, cell)| cell.to_element(move |action| Message::Forward(i, j, action)))
+        }))
+        .width(match *self.cell.width {
+            FillPortion(_) => FillPortion(*self.cell.width_int_parsed),
+            Fixed(_) => Fixed(*self.cell.width_float_parsed),
+            _ => self.cell.width.into(),
+        })
+        .height(match *self.cell.height {
+            FillPortion(_) => FillPortion(*self.cell.height_int_parsed),
+            Fixed(_) => Fixed(*self.cell.height_float_parsed),
+            _ => self.cell.height.into(),
+        })
+        .padding(*self.padding)
+        .align_x(self.align_x)
+        .align_y(self.align_y)
+        .column_spacing(*self.column_spacing)
+        .row_spacing(*self.row_spacing)
+        .main_axis(self.axis);
+
+        let mut std_grid = iced_grid::Grid::with_children(
+            self.grid
+                .iter()
+                .enumerate()
+                .map(|(i, vec)| {
+                    vec.iter().enumerate().map(move |(j, cell)| {
+                        cell.to_element(move |action| Message::Forward(i, j, action))
+                    })
                 })
-            }))
-            .width(match *self.cell.width {
-                FillPortion(_) => FillPortion(*self.cell.width_int_parsed),
-                Fixed(_) => Fixed(*self.cell.width_float_parsed),
-                _ => self.cell.width.into(),
-            })
-            .height(match *self.cell.height {
-                FillPortion(_) => FillPortion(*self.cell.height_int_parsed),
-                Fixed(_) => Fixed(*self.cell.height_float_parsed),
-                _ => self.cell.height.into(),
-            })
-            .padding(*self.padding)
-            .align_x(self.align_x)
-            .align_y(self.align_y)
-            .column_spacing(*self.column_spacing)
-            .row_spacing(*self.row_spacing)
-            .main_axis(self.axis)
-            .into();
+                .flatten(),
+        )
+        .height(match *self.cell.height {
+            FillPortion(_) => FillPortion(*self.cell.height_int_parsed),
+            Fixed(_) => Fixed(*self.cell.height_float_parsed),
+            _ => self.cell.height.into(),
+        })
+        .spacing(*self.column_spacing)
+        .columns(3);
+
+        match *self.cell.width {
+            Fixed(x) => std_grid = std_grid.width(x),
+            _ => (),
+        }
+
+        let mut both_grids: Element<'_, _> = column![
+            text("More Iced AW grid"),
+            rule::horizontal(5),
+            this_grid,
+            rule::horizontal(10),
+            text("More Iced AW grid"),
+            rule::horizontal(5),
+            std_grid
+        ]
+        .spacing(10)
+        .into();
 
         if self.explain {
-            grid = grid.explain(color!(0xff0000))
+            both_grids = both_grids.explain(color!(0xff0000))
         }
 
         let side_panel = column![
@@ -281,7 +317,7 @@ impl App {
             .spacing(10),
             row![
                 "Explain",
-                checkbox("", self.explain).on_toggle(Message::Explain)
+                checkbox(self.explain).on_toggle(Message::Explain)
             ]
             .spacing(10),
         ]
@@ -289,7 +325,7 @@ impl App {
         .width(300)
         .padding(10);
 
-        row![side_panel, vertical_rule(10), grid].into()
+        row![side_panel, rule::vertical(10), both_grids].into()
     }
 }
 
