@@ -10,16 +10,12 @@
 use std::{collections::HashSet, fmt::Display};
 
 use iced::{
-    Length::{self, Shrink},
-    Padding, Pixels, Point, Size,
-    advanced::{
+    Length::{self, Shrink}, Padding, Pixels, Point, Rectangle, Size, advanced::{
         self, Widget,
         graphics::core::Element,
         layout::{self, Limits, Node},
         widget::Tree,
-    },
-    alignment::{Horizontal, Vertical},
-    event,
+    }, alignment::{Horizontal, Vertical},
 };
 
 /// The [Grid] widget.
@@ -191,7 +187,7 @@ where
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut Tree,
         renderer: &Renderer,
         limits: &advanced::layout::Limits,
@@ -237,8 +233,8 @@ where
             let mut iter = tree.children.iter_mut();
 
             self.rows
-                .iter()
-                .map(|vec| vec.iter().zip(&mut iter).collect())
+                .iter_mut()
+                .map(|vec| vec.iter_mut().zip(&mut iter).collect())
                 .collect()
         };
 
@@ -273,7 +269,7 @@ where
                     let (max_width, max_height) = axis.pack(main, cross_max);
 
                     let child_limits = Limits::new(Size::ZERO, Size::new(max_width, max_height));
-                    let layout = elt.as_widget().layout(tree, renderer, &child_limits);
+                    let layout = elt.as_widget_mut().layout(tree, renderer, &child_limits);
 
                     let main = axis.main(layout.size());
 
@@ -322,8 +318,7 @@ where
 
         let mut cross = max_cross;
 
-        let mut nodes: Vec<Vec<_>> = self
-            .rows
+        let mut nodes: Vec<Vec<_>> = elts_trees
             .iter()
             .map(|vec| vec.iter().map(|_| Node::default()).collect())
             .collect();
@@ -354,7 +349,7 @@ where
                         },
                     );
 
-                    let layout = elt.as_widget().layout(tree, renderer, &limits);
+                    let layout = elt.as_widget_mut().layout(tree, renderer, &limits);
 
                     let size_cross = axis.cross(layout.size());
 
@@ -429,7 +424,7 @@ where
                         },
                     );
 
-                    nodes[a][b] = elt.as_widget().layout(tree, renderer, &limits);
+                    nodes[a][b] = elt.as_widget_mut().layout(tree, renderer, &limits);
                 }
             }
         }
@@ -519,42 +514,43 @@ where
     }
 
     fn operate(
-        &self,
+        &mut self,
         state: &mut Tree,
         layout: layout::Layout<'_>,
         renderer: &Renderer,
         operation: &mut dyn advanced::widget::Operation,
     ) {
-        operation.container(None, layout.bounds(), &mut |operation| {
-            self.get_elements()
+        operation.container(None, layout.bounds());
+        operation.traverse(&mut |operation| {
+            self.get_mut_elements()
                 .zip(&mut state.children)
                 .zip(layout.children())
                 .for_each(|((child, state), layout)| {
                     child
-                        .as_widget()
+                        .as_widget_mut()
                         .operate(state, layout, renderer, operation);
                 });
         });
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         state: &mut Tree,
-        event: iced::Event,
+        event: &iced::Event,
         layout: layout::Layout<'_>,
         cursor: advanced::mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn advanced::Clipboard,
         shell: &mut advanced::Shell<'_, Message>,
         viewport: &iced::Rectangle,
-    ) -> advanced::graphics::core::event::Status {
+    ) {
         self.get_mut_elements()
             .zip(&mut state.children)
             .zip(layout.children())
             .map(|((child, state), layout)| {
-                child.as_widget_mut().on_event(
+                child.as_widget_mut().update(
                     state,
-                    event.clone(),
+                    event,
                     layout,
                     cursor,
                     renderer,
@@ -562,8 +558,7 @@ where
                     shell,
                     viewport,
                 )
-            })
-            .fold(event::Status::Ignored, event::Status::merge)
+            }).collect()
     }
 
     fn mouse_interaction(
@@ -589,8 +584,9 @@ where
     fn overlay<'b>(
         &'b mut self,
         tree: &'b mut Tree,
-        layout: layout::Layout<'_>,
+        layout: layout::Layout<'b>,
         renderer: &Renderer,
+        viewport: &Rectangle,
         translation: iced::Vector,
     ) -> Option<advanced::overlay::Element<'b, Message, Theme, Renderer>> {
         let children = self
@@ -600,7 +596,7 @@ where
             .filter_map(|((child, state), layout)| {
                 child
                     .as_widget_mut()
-                    .overlay(state, layout, renderer, translation)
+                    .overlay(state, layout, renderer, viewport, translation)
             })
             .collect::<Vec<_>>();
 
